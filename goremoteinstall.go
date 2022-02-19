@@ -554,9 +554,11 @@ func (gri *RemoteInstall) _tsk_copy_agent(_path string, fs *smb2.Share, t *Targe
 		SrvPort:    gri.agent_file_config.SrvPort,
 		TaskID:     gri.agent_file_config.TaskID,
 		Dir:        gri.agent_file_config.Dir,
-		HostID:     t.HostID,
-		Host:       t.Host,
-		Time:       gri.t.Format("2006-01-02_15-04-05"),
+		Timeout:    uint(gri.srvTaskConfig.Timeout),
+
+		HostID: t.HostID,
+		Host:   t.Host,
+		Time:   gri.t.Format("2006-01-02_15-04-05"),
 	}
 	b, err = json.Marshal(&tmpConf)
 	if err != nil {

@@ -109,6 +109,8 @@ type Agent_file_config_type struct {
 	Params    []string `json:"Params"`
 
 	Dir string `json:"Dir"`
+
+	Timeout uint `json:"Timeout"`
 }
 
 type package_files struct {
