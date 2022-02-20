@@ -13,40 +13,76 @@ import (
 	"gorm.io/gorm"
 )
 
+// this struct will help us to remotely install apps on the
+// target machines.
 type RemoteInstall struct {
+
+	// task start time, it is shared between clients and servers using .json file
 	startTime time.Time
 
-	Target       string
-	Username     string
-	Domain       string
-	Password     string
-	FilesToCopy  string
-	FileToRemote string
+	// Target file name taht include all target machines separeted by \n or \r\n
+	Target string
 
+	// Username that has access to ADMIN$ and enough privilege to install apps
+	Username string
+
+	// Domain name that user needs for it's authentication process. for local users, just a . (dot) is required
+	Domain string
+
+	// Password for the user
+	Password string
+
+	// list of files that should be copied to the target machines.
+	FilesToCopy string
+
+	// the file name that should run at first step
+	FileToRun string
+
+	// provide domain\user style
 	backslashStyle string
-	atSignStyle    string
 
+	// provide user@domain style
+	atSignStyle string
+
+	// list of target objects to install
 	targets []*Target
-	f2cs    []string
 
+	// list of files to copy
+	f2cs []string
+
+	// just a ticker to show the progress if not silent
 	progressTicker *time.Ticker
 
-	debug  bool
+	// print debug info if it's true, it will disable the progress
+	debug bool
+
+	// if its true, nothing will be printed
 	silent bool
 
+	// just a time variable for start task time
 	t time.Time
+
 	// l         net.Listener
+
+	// path to griAgent.exe file
 	agentPath string
 
-	srvTaskPath   string
+	// path to server task configuration (deprecated and kept here for backward compatibility)
+	srvTaskPath string
+
+	// Server task configuration
 	srvTaskConfig *ServerTaskConfig
 
+	// Global server configuration
 	srvGlobalConfig *ServerGlobalConfig
 
+	// for manage concurrent task using wait group
 	wg *sync.WaitGroup
 
+	// GORM database object for stroing logs on sqlite DB
 	db *gorm.DB
 
+	// Task ID is an identified for the current task
 	TaskID string
 
 	// socket connection to deployer server
@@ -67,6 +103,7 @@ type RemoteInstall struct {
 
 	// allJobChan chan int
 
+	// channel for the time that some signal that push from OS or User
 	closeChannel     chan os.Signal
 	closeSignalRecvd bool
 
@@ -87,32 +124,55 @@ type RemoteInstall struct {
 	agent_files_config_byte      []byte
 	agent_files_config_byte_done bool
 
+	//
 	unixConn net.Conn
 }
 
+// this type is uses to provide dynamic .json configuration for
+// griAgent.
 type Agent_file_config_type struct {
+
+	// time is
 	Time string `json:"Time"`
 
+	// gri server (deployer) address
 	SrvAddress string `json:"DeployerAddress"`
-	SrvPort    int    `json:"DeployerPort"`
+	// gri server (deployer) port
+	SrvPort int `json:"DeployerPort"`
 
-	Host   string `json:"Host"`
+	// Host - provided from targets
+	Host string `json:"Host"`
+	// Generated host id
 	HostID string `json:"HostID"`
 
-	TaskID     string `json:"TaskID"`
+	// Task ID
+	TaskID string `json:"TaskID"`
+
+	// Computer ID - reserved for future usage
 	ComputerID string `json:"ComputerID"`
 
-	IP           string `json:"IP"`
+	// IP - reserved for future usage
+	IP string `json:"IP"`
+
+	// Computer name - reserved for future usage
 	ComputerName string `json:"ComputerName"`
 
-	Bootstrap string   `json:"Bootstrap"`
-	Params    []string `json:"Params"`
+	// Bootstrap is the first app that should run on the system
+	Bootstrap string `json:"Bootstrap"`
 
+	// Params is a array of command line arguments
+	Params []string `json:"Params"`
+
+	// Working dir usually "%systemroot\\TEMP\\YARMA\\%"
 	Dir string `json:"Dir"`
 
+	// timeout amount in minutes
 	Timeout uint `json:"Timeout"`
 }
 
+// struct to keep the package file inside and used for multiple hosts
+// it will be filled when files copied on the first target
+// and will be used next time
 type package_files struct {
 	filename        string
 	file_bytes      []byte
@@ -128,8 +188,13 @@ func New(dbg, silent bool, gc *ServerGlobalConfig, tc *ServerTaskConfig, confNam
 	// 	os.Exit(int(ERR_TCP_LISTEN))
 	// }
 
+	// generate task ID
 	tskId := fmt.Sprintf("tsk-%s", confName)
+
+	// create or open sqlite db
 	db := GetTaskDB(tskId)
+
+	// just add the start time
 	t := time.Now()
 
 	// prepare and initialize unix socket clinet
@@ -176,11 +241,11 @@ func New(dbg, silent bool, gc *ServerGlobalConfig, tc *ServerTaskConfig, confNam
 
 		UnixClientSock: &unixClient,
 
-		Username:     tc.Username,
-		Domain:       tc.Domain,
-		Password:     tc.Password,
-		FilesToCopy:  tc.Files,
-		FileToRemote: tc.Bootstrap,
+		Username:    tc.Username,
+		Domain:      tc.Domain,
+		Password:    tc.Password,
+		FilesToCopy: tc.Files,
+		FileToRun:   tc.Bootstrap,
 
 		backslashStyle: fmt.Sprintf("%s\\%s", tc.Domain, tc.Username),
 		atSignStyle:    fmt.Sprintf("%s@%s", tc.Username, tc.Domain),

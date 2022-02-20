@@ -19,6 +19,8 @@ import (
 	"github.com/zenthangplus/goccm"
 )
 
+// run the whole process
+// this is responsible for running the tasks on the target
 func (gri *RemoteInstall) Run() {
 
 	gri.startTime = time.Now()
