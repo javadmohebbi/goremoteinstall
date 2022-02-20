@@ -23,18 +23,6 @@ func (gri *RemoteInstall) Run() {
 
 	gri.startTime = time.Now()
 
-	// // read targets from target.txt
-	// gri.readTargets()
-
-	// // read f2c from f2c.txt
-	// gri.readFilesToCopy()
-
-	// gri.copyFilesOverSMB()
-
-	// // listen on tcp and wait for installer
-	// // to update it's status
-	// gri.Listen()
-
 	gri.closeChannel = make(chan os.Signal, 1)
 	signal.Notify(gri.closeChannel,
 		syscall.SIGINT,  // "the normal way to politely ask a program to terminate"

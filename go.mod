@@ -4,10 +4,13 @@ go 1.15
 
 require (
 	github.com/cheggaaa/pb/v3 v3.0.8 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hirochachacha/go-smb2 v1.0.10
 	github.com/jinzhu/gorm v1.9.16 // indirect
-	github.com/judwhite/go-svc v1.2.1
+	github.com/judwhite/go-svc v1.2.1 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
+	github.com/posener/complete/v2 v2.0.1-alpha.13 // indirect
 	github.com/spf13/afero v1.8.1 // indirect
 	github.com/spf13/viper v1.10.1
 	github.com/zenthangplus/goccm v0.0.0-20211005163543-2f2e522aca15

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -14,43 +15,96 @@ import (
 	"github.com/javadmohebbi/goremoteinstall"
 )
 
+// variable for task confs
 var confs []string
+
+// keep the selected conf index
 var selected int
 
+// default path
+var defaultConfDir = "/opt/yarma/goremoteinstall/etc/conf.d/"
+
 func main() {
-	confDir := flag.String("conf", "/opt/yarma/goremoteinstall/etc/conf.d/", "Configuration directory which includes all the defined tasks configurations")
 
-	silent := flag.Bool("s", false, "if provided, no output will be displayed about progress")
+	/**
+	parse the flag and commandline completion
+	**/
 
+	// define conf dir
+	// confDir := flag.String("d", defaultConfDir, "Configuration directory which includes all the defined tasks configurations")
+	confDir := &defaultConfDir
+
+	// if provided, no output will be displayed
+	silent := flag.Bool("s", false, "if provided, no output will be displayed about progress. if it provided, -n {CONFIGURATION FILE NAME} must be specified")
+
+	// confName
+	fConfName := flag.String("n", "", "Configuration file name. eg: installation-task-1.yaml")
+
+	// parse the command line arguments
 	flag.Parse()
 
+	/**
+
+	start the program logic
+
+	**/
+
+	// check if conf dir is empty
 	if *confDir == "" {
-		log.Fatal("-conf must be specified")
+		fmt.Println("-d dir must be specified")
+		flag.PrintDefaults()
+		os.Exit(1)
 	}
 
-	_, err := walkAndChoose(*confDir)
+	// check if silent
+	if *silent {
+		if *fConfName == "" {
+			fmt.Println("when you use -s, -n {CONFIGURATION FILE NAME} must be specified")
+			flag.PrintDefaults()
+			os.Exit(1)
+		}
+	}
+
+	// validate fConfName
+	if filepath.Ext(*fConfName) != "yaml" || filepath.Ext(*fConfName) != "yml" {
+		fmt.Printf("Configuration file should have 'yml' or 'yaml' extention. Your provided name is '%s'\n", *fConfName)
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	// walk through dir and choose the conf
+	_, err := walkAndChoose(*confDir, *fConfName)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	fmt.Printf(">>> Conf. [%s] is selected for running the task. ", confs[selected])
+	// if not silent, ask user to
+	if !*silent {
+		// prinf the selected conf file name and path
+		fmt.Printf(">>> Conf. [%s] is selected for running the task. ", confs[selected])
 
-	getYesOrNo("\n\nDo you want to continue? [y=yes,others for no]")
+		// ask user to confirm
+		getYesOrNo("\n\nDo you want to continue? [y=yes,others for no]")
+	}
 
+	// read gloabl configuration file
 	gc, err := goremoteinstall.NewGloablConfig("/opt/yarma/goremoteinstall/etc/")
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// read task configuration file
 	tc, err := goremoteinstall.NewServerTaskConfig(filepath.Dir(confs[selected]), filepath.Base(confs[selected]))
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// extract file and extentions
 	var filename = filepath.Base(confs[selected])
 	var extension = filepath.Ext(filename)
 	confName := filename[0 : len(filename)-len(extension)]
 
+	// create new instance of gri server
 	gri := goremoteinstall.New(
 		false,
 		*silent,
@@ -59,18 +113,45 @@ func main() {
 		confName,
 	)
 
+	// run the gri server
 	gri.Run()
 
 }
 
-func walkAndChoose(confDir string) (int, error) {
+// walk through conf dir and populate all of the possilbe file names
+// if there is just one, select it, otherwise, ask user to select
+// if fConfName is provided, it will only look for that file name and will select it
+// fo the task
+func walkAndChoose(confDir, fConfName string) (int, error) {
 	files, err := ioutil.ReadDir(confDir)
 	if err != nil {
 		log.Fatalln("Can not read conf.d: ", err)
 	}
-	for _, file := range files {
-		if filepath.Ext(file.Name()) == ".yaml" {
-			confs = append(confs, fmt.Sprintf("%s%s", confDir, file.Name()))
+
+	// check if fConfName is available
+	if fConfName != "" {
+
+		// check if file exists
+		fconfNameCheck := false
+
+		for _, file := range files {
+			if file.Name() == fConfName {
+				fconfNameCheck = true
+				confs = append(confs, fmt.Sprintf("%s%s", confDir, file.Name()))
+				break
+			}
+		}
+
+		if !fconfNameCheck {
+			return -1, errors.New(fmt.Sprintf("'%s' not found in the path '%s'", fConfName, confDir))
+		}
+
+	} else {
+		// if fConfname is empty, loop through all confs
+		for _, file := range files {
+			if filepath.Ext(file.Name()) == ".yaml" {
+				confs = append(confs, fmt.Sprintf("%s%s", confDir, file.Name()))
+			}
 		}
 	}
 
@@ -93,10 +174,6 @@ func walkAndChoose(confDir string) (int, error) {
 
 		cmd := exec.Command("/usr/bin/less")
 		cmd.Stdin = strings.NewReader(stdinStr)
-		// _, err = cmd.StdinPipe()
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
 
 		cmd.Stdout = os.Stdout
 
@@ -121,6 +198,9 @@ func walkAndChoose(confDir string) (int, error) {
 	return selected, nil
 }
 
+// this will wait for enter key and continue,
+// this is really handy for pager utility when we hint user that we have more than
+// 15 files and /bin/less will be used to page the result
 func waitForEnterKey(msg string) {
 	consoleReader := bufio.NewReaderSize(os.Stdin, 1)
 	fmt.Printf("%s > ", msg)
@@ -128,14 +208,15 @@ func waitForEnterKey(msg string) {
 		input, _ := consoleReader.ReadByte()
 		ascii := input
 
-		log.Println(ascii)
+		// log.Println(ascii)
 
-		if ascii == 10 {
+		if ascii == 13 {
 			return
 		}
 	}
 }
 
+// get the selected item index
 func getSelectedIterm() {
 	var i int
 
@@ -160,6 +241,9 @@ func getSelectedIterm() {
 
 }
 
+// ask user to continue the process
+// only 'y' or 'Y' will continue the process, othewise it will be exited
+// with 0 (zero) code
 func getYesOrNo(msg string) {
 	consoleReader := bufio.NewReaderSize(os.Stdin, 1)
 	fmt.Printf("%s > ", msg)
